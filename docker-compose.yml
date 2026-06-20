@@ -10,6 +10,10 @@ services:
       dockerfile: Dockerfile
     container_name: actual-digest
     restart: unless-stopped
+    dns:
+      # hard wiring to my own local dns, fork and edit or comment out this section for your own situation
+      - 192.168.1.220
+
 
     environment:
       # Pacific time — makes the "0 8 * * 0" cron expression in
