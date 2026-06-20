@@ -70,6 +70,33 @@ function postToSlack(webhookUrl, payload) {
   });
 }
 
+const SYNC_RESULTS_FILE = '/tmp/sync-results.json';
+
+// Read bank sync results written by bank-sync.js 30 minutes earlier.
+// Returns null if the file doesn't exist (e.g. manual digest run without
+// running bank-sync first, or sync script fatally failed before writing).
+function readSyncResults() {
+  try {
+    const raw = fs.readFileSync(SYNC_RESULTS_FILE, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+// Build a single-line sync status summary for the Slack digest footer.
+function syncStatusText(results) {
+  if (!results) return '⚠️ No sync results found — bank sync may not have run.';
+  if (results.fatalError) return `❌ Bank sync failed: ${results.fatalError}`;
+
+  const parts = [];
+  if (results.synced.length)  parts.push(`✅ ${results.synced.length} synced`);
+  if (results.failed.length)  parts.push(`❌ ${results.failed.length} failed`);
+  if (results.skipped.length) parts.push(`⏭️ ${results.skipped.length} skipped (closed)`);
+  return `_Bank sync: ${parts.join(', ')}_`;
+}
+
+
 async function getIncludedGroupsForMonth(monthStr) {
   const budgetMonth = await api.getBudgetMonth(monthStr);
 
@@ -179,7 +206,8 @@ function renderGroupTables(blocks, groups) {
 // One entry for a normal week. Two entries (last month + current month)
 // on the first Sunday of a month when last month didn't get a proper
 // close-out the Sunday before — see shouldShowLastMonth().
-function buildSlackBlocks(monthSections) {
+// syncResults: output of readSyncResults() — null if sync didn't run.
+function buildSlackBlocks(monthSections, syncResults) {
   const blocks = [];
 
   const headerLabel =
@@ -216,6 +244,13 @@ function buildSlackBlocks(monthSections) {
       ],
     });
   }
+
+  // Sync status footer — shows bank sync results from the 7:00 AM run.
+  blocks.push({ type: 'divider' });
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: syncStatusText(syncResults) }],
+  });
 
   return blocks;
 }
@@ -271,7 +306,8 @@ async function main() {
       totalSpent,
     });
 
-    const blocks = buildSlackBlocks(monthSections);
+    const syncResults = readSyncResults();
+    const blocks = buildSlackBlocks(monthSections, syncResults);
 
     console.log('Posting to Slack ...');
     await postToSlack(webhookUrl, { blocks });
