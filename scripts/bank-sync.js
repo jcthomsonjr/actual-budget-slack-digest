@@ -70,12 +70,13 @@ async function main() {
     }
   } finally {
     await api.shutdown();
+    // Write results inside finally so this always runs, even if some
+    // accounts errored during the sync loop — guaranteed delivery to
+    // the digest script 30 minutes later regardless of partial failures.
+    fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
+    console.log(`[bank-sync] Results written to ${RESULTS_FILE}`);
+    console.log(`[bank-sync] Done. Synced: ${results.synced.length}, Failed: ${results.failed.length}, Skipped: ${results.skipped.length}`);
   }
-
-  // Write results for the digest to read 30 minutes later.
-  fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
-  console.log(`[bank-sync] Results written to ${RESULTS_FILE}`);
-  console.log(`[bank-sync] Done. Synced: ${results.synced.length}, Failed: ${results.failed.length}, Skipped: ${results.skipped.length}`);
 }
 
 main().catch((err) => {
