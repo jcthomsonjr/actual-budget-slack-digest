@@ -21,6 +21,25 @@ const fs = require('fs');
 
 const RESULTS_FILE = '/tmp/sync-results.json';
 
+// The @actual-app/api package has a known issue where a failed account's
+// error can be re-thrown during the *next* account's sync call, bypassing
+// our per-account try/catch and crashing the process. This handler catches
+// that case and writes whatever results we have so far before exiting,
+// so the digest script always gets a status line even on partial runs.
+let results = { synced: [], skipped: [], failed: [], timestamp: new Date().toISOString() };
+
+process.on('unhandledRejection', (err) => {
+  console.error('[bank-sync] Unhandled rejection (likely API internal error):', err.message);
+  // If we already logged this error for a failed account, don't double-count it.
+  const alreadyCounted = results.failed.some((f) => f.error === err.message);
+  if (!alreadyCounted) {
+    results.failed.push({ name: 'unknown (API internal)', error: err.message });
+  }
+  try { fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2)); } catch {}
+  console.log(`[bank-sync] Results written to ${RESULTS_FILE} (via unhandledRejection handler)`);
+  process.exit(1);
+});
+
 async function main() {
   const serverURL = process.env.ACTUAL_SERVER_URL;
   const password = process.env.ACTUAL_PASSWORD;
@@ -41,7 +60,7 @@ async function main() {
 
   // Initialize results before api.init so the finally block can always
   // write the file, even if init or downloadBudget throws.
-  const results = { synced: [], skipped: [], failed: [], timestamp: new Date().toISOString() };
+  results = { synced: [], skipped: [], failed: [], timestamp: new Date().toISOString() };
 
   try {
     await api.init({ serverURL, password, dataDir });
