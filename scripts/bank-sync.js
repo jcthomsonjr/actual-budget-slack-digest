@@ -38,11 +38,13 @@ async function main() {
   fs.mkdirSync(dataDir, { recursive: true });
 
   console.log(`[bank-sync] Connecting to ${serverURL} ...`);
-  await api.init({ serverURL, password, dataDir });
 
+  // Initialize results before api.init so the finally block can always
+  // write the file, even if init or downloadBudget throws.
   const results = { synced: [], skipped: [], failed: [], timestamp: new Date().toISOString() };
 
   try {
+    await api.init({ serverURL, password, dataDir });
     await api.downloadBudget(syncId);
     const accounts = await api.getAccounts();
     const activeAccounts = accounts.filter((a) => !a.closed);
@@ -69,10 +71,12 @@ async function main() {
       }
     }
   } finally {
-    await api.shutdown();
-    // Write results inside finally so this always runs, even if some
-    // accounts errored during the sync loop — guaranteed delivery to
-    // the digest script 30 minutes later regardless of partial failures.
+    // Shut down gracefully, but don't let a shutdown error prevent the
+    // results file from being written — that's the most important thing.
+    try { await api.shutdown(); } catch {}
+
+    // Always write results so the digest script gets a status line,
+    // even if the sync loop errored or was incomplete.
     fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
     console.log(`[bank-sync] Results written to ${RESULTS_FILE}`);
     console.log(`[bank-sync] Done. Synced: ${results.synced.length}, Failed: ${results.failed.length}, Skipped: ${results.skipped.length}`);
