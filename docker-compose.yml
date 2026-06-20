@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  actual-digest:
+    build:
+      # When deploying via Portainer Repository method, Portainer clones
+      # the repo and builds from this context. The "." is relative to the
+      # repo root — no absolute paths needed.
+      context: .
+      dockerfile: Dockerfile
+    container_name: actual-digest
+    restart: unless-stopped
+
+    environment:
+      # Pacific time — makes the "0 8 * * 0" cron expression in
+      # scheduler.js resolve to 8:00 AM Pacific.
+      - TZ=America/Los_Angeles
+      # Secrets: set these in Portainer's stack Environment Variables UI.
+      # Never hardcode values here.
+      - ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
+      - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
+      - ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+
+    volumes:
+      # Persists Actual's local budget cache across container restarts.
+      # The API package only needs to sync deltas on subsequent runs,
+      # not re-download the full budget file every Sunday.
+      # To force a fresh download: docker volume rm actual-digest_actual-digest-cache
+      - actual-digest-cache:/tmp/actual-cache
+
+    # No inbound ports — this container only makes outbound HTTPS calls
+    # to your Actual server and to hooks.slack.com.
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  actual-digest-cache:

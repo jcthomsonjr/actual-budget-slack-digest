@@ -1,0 +1,18 @@
+# Dependencies — installed on build, never committed
+node_modules/
+
+# Actual Budget local cache — downloaded at runtime by @actual-app/api
+# Contains a local copy of your budget file; never commit this
+actual-cache/
+/tmp/actual-cache/
+
+# Environment files — secrets go in Portainer env vars, not here
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp

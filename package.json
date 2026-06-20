@@ -1,0 +1,15 @@
+{
+  "name": "actual-budget-slack-digest",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Weekly Actual Budget digest posted to household Slack channel",
+  "scripts": {
+    "start": "node scripts/scheduler.js",
+    "digest": "node scripts/weekly-digest.js",
+    "diagnostic": "node scripts/diagnostic.js"
+  },
+  "dependencies": {
+    "@actual-app/api": "^26.6.0",
+    "node-cron": "^3.0.3"
+  }
+}
